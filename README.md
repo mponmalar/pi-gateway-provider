@@ -32,32 +32,70 @@ parsing, and usage/cost accounting to pi-ai's built-in
 > `streamGateway`/`gatewayFetch` functions need adapting — see
 > `docs/custom-provider.md` → "Custom Streaming API" in the pi docs.
 
-## Configuration
+## One-time environment setup
 
-| Env var | Required | Description |
-|---|---|---|
-| `GATEWAY_BASE_URL` | yes | Gateway base URL, e.g. `https://llm-gateway.corp.example.com` |
-| `GATEWAY_API_KEY` | yes | Gateway API key (sent as `x-api-key`) |
-| `GATEWAY_MODELS` | no | JSON array of models to register (see below); defaults to the built-in list in the extension |
-
-`GATEWAY_MODELS` example:
+Set these environment variables **once** (e.g. in `~/.bashrc` / `~/.zshenv`,
+a dotfiles repo, or your org's env management), then open a new shell:
 
 ```bash
+# 1. (required) Gateway base URL — no trailing slash
+export GATEWAY_BASE_URL="https://llm-gateway.corp.example.com"
+
+# 2. (required) Your gateway API key — sent as the x-api-key header
+export GATEWAY_API_KEY="<your-gateway-key>"
+
+# 3. (optional) Model list + params — JSON array, one object per model.
+#    If unset, the DEFAULT_MODELS list in the extension is used.
 export GATEWAY_MODELS='[
-  {"id":"claude-sonnet-4-5","name":"Sonnet 4.5 (GW)","reasoning":true,"input":["text","image"],"contextWindow":200000,"maxTokens":16384},
-  {"id":"gpt-4o","name":"GPT-4o (GW)","input":["text","image"],"contextWindow":128000,"maxTokens":16384}
+  {
+    "id": "claude-sonnet-4-5",
+    "name": "Sonnet 4.5 (GW)",
+    "reasoning": true,
+    "input": ["text", "image"],
+    "contextWindow": 200000,
+    "maxTokens": 16384,
+    "cost": { "input": 3, "output": 15, "cacheRead": 0.3, "cacheWrite": 3.75 }
+  },
+  {
+    "id": "gpt-4o",
+    "name": "GPT-4o (GW)",
+    "reasoning": false,
+    "input": ["text", "image"],
+    "contextWindow": 128000,
+    "maxTokens": 16384
+  }
 ]'
 ```
 
-Only `id` is required per model. Optional: `name`, `reasoning`, `input`,
-`cost` (`{input, output, cacheRead, cacheWrite}` per million tokens),
-`contextWindow`, `maxTokens`.
+### Env variables
+
+| Variable | Required | Description |
+|---|---|---|
+| `GATEWAY_BASE_URL` | **yes** | Gateway base URL. Requests go to `{GATEWAY_BASE_URL}/{model id}/invoke`. |
+| `GATEWAY_API_KEY` | **yes** | Gateway API key, sent on every request as the `x-api-key` header. |
+| `GATEWAY_MODELS` | no | JSON array of models to register (see parameters below). Falls back to the built-in list in the extension when unset or invalid. |
+
+### Per-model parameters (`GATEWAY_MODELS` array items)
+
+| Field | Required | Type / Default | Description |
+|---|---|---|---|
+| `id` | **yes** | string | Model identifier. Used in the request URL (`/{id}/invoke`) and in `/model` selection (`corp-gateway/{id}`). |
+| `name` | no | string, default `id` | Human-readable label shown in pi's model lists. |
+| `reasoning` | no | bool, default `false` | Whether the model supports extended thinking (thinking levels appear in the UI when true). |
+| `input` | no | array, default `["text"]` | Supported input types: `"text"`, and `"image"` if the gateway accepts image inputs. |
+| `contextWindow` | no | number, default `128000` | Max context size in tokens — set this to the gateway's limit so pi compacts before overflow. |
+| `maxTokens` | no | number, default `16384` | Max output tokens per response. |
+| `cost` | no | object, all zeros | Pricing per **million** tokens: `{ "input": n, "output": n, "cacheRead": n, "cacheWrite": n }`. Use real prices if the gateway reports usage, so pi's cost tracking is meaningful; leave unset for internal/free models. |
+
+> Tip: keep `GATEWAY_MODELS` on one line per model or as a single compact
+> line when placing it in a shared env file — it must be valid JSON
+> (double quotes, no trailing commas, no comments). Verify with:
+> `echo "$GATEWAY_MODELS" | python3 -m json.tool`
 
 ## Try it once (no install)
 
 ```bash
-export GATEWAY_BASE_URL=https://llm-gateway.corp.example.com
-export GATEWAY_API_KEY=...
+# env vars from the one-time setup above must be exported in this shell
 pi -e ./gateway-provider/extensions/gateway-provider.ts
 # then: /model  →  pick a "corp-gateway" model
 ```
