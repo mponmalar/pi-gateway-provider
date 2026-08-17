@@ -1,0 +1,11 @@
+{
+	"name": "corp-gateway-provider",
+	"version": "0.1.0",
+	"private": true,
+	"description": "pi extension: register an enterprise LLM gateway provider ({base}/{model}/invoke endpoints, x-api-key auth)",
+	"keywords": [
+		"pi",
+		"extension",
+		"llm-gateway"
+	]
+}
